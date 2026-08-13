@@ -8,6 +8,8 @@
 #include <queue>
 #include <thread>
 #include <vector>
+#include<functional>
+
 
 class ThreadPool
 {
@@ -25,11 +27,20 @@ public:
     ThreadPool(ThreadPool&&) noexcept;
     ThreadPool& operator=(ThreadPool&&) noexcept;
 
-    template <typename F>
-    void submit(F&& task){
+    template<typename F,typename... Args>
+    void submit(F&& task,Args&&... args){
         {
             std::lock_guard<std::mutex>lock(queue_mutex_);
-            tasks_.emplace(std::forward<F>(task));
+            auto wrapper =
+                [
+                    task = std::forward<F>(task),
+                    ... args = std::forward<Args>(args)
+                ]() mutable
+                {
+                    std::invoke(task,args...);
+                };
+
+            tasks_.emplace(std::move(wrapper));
         }
 
         condition_.notify_one();
