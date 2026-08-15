@@ -3,6 +3,11 @@
 ThreadPool::ThreadPool(std::size_t threadCount)
     : stop_(false)
 {
+    if (threadCount == 0)
+    {
+        threadCount = 1;
+    }
+
     workers_.reserve(threadCount);
 
     for (std::size_t i = 0; i < threadCount; ++i)

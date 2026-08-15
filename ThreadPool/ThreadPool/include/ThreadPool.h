@@ -1,14 +1,16 @@
 #pragma once
 
-#include <condition_variable>
-#include <cstddef>
-#include <functional>
-#include <utility>
-#include <mutex>
-#include <queue>
 #include <thread>
 #include <vector>
-#include<functional>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
+#include <future>
+#include <type_traits>
+#include <utility>
+#include <memory>
+#include <stdexcept>
 
 
 class ThreadPool
@@ -25,26 +27,41 @@ public:
 
     // Movable
     ThreadPool(ThreadPool&&) noexcept;
-    ThreadPool& operator=(ThreadPool&&) noexcept;
+    ThreadPool& operator=(ThreadPool&&) =  delete;
 
+    //submit the task
     template<typename F,typename... Args>
-    void submit(F&& task,Args&&... args){
-        {
-            std::lock_guard<std::mutex>lock(queue_mutex_);
-            auto wrapper =
-                [
-                    task = std::forward<F>(task),
-                    ... args = std::forward<Args>(args)
-                ]() mutable
-                {
-                    std::invoke(task,args...);
-                };
+    auto submit(F&& task,Args&&... args) -> std::future<std::invoke_result_t<F, Args...>>
+    {
 
-            tasks_.emplace(std::move(wrapper));
+        using ReturnType = std::invoke_result_t<F, Args...>;
+        auto packagedTask = std::make_shared<std::packaged_task<ReturnType()>>(
+            [
+                task = std::forward<F>(task),
+                ...args = std::forward<Args>(args)
+            ]() mutable {
+                return std::invoke(std::move(task),std::move(args)...);
+            }
+        );
+
+        std::future<ReturnType> future = packagedTask->get_future();
+
+        {   
+            std::lock_guard<std::mutex>lock(queue_mutex_);          
+            if (stop_)
+            {
+                throw std::runtime_error("ThreadPool has been stopped");
+            }
+
+            tasks_.emplace(
+                [packagedTask]() {
+                    (*packagedTask)();
+                }
+            );
         }
 
         condition_.notify_one();
-
+        return future;
     }
 
     [[nodiscard]]
@@ -59,5 +76,5 @@ private:
     mutable std::mutex queue_mutex_;
     std::condition_variable condition_;
 
-    bool stop_;
+    bool stop_ = false;
 };
