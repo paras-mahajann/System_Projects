@@ -1,22 +1,29 @@
 #include "ThreadPool.h"
+#include <iostream>
 
-#include<iostream>
-#include<thread>
-#include<chrono>
+int main()
+{
+    ThreadPool pool(4);
 
-int main() {
-	ThreadPool pool(4);
+    auto future1 = pool.submit([]()
+        {
+            return 10;
+        });
 
-	for (int i = 0;i < 10;++i) {
-		pool.submit([i] {
-			std::cout << "Task " << i
-				<< " running on thread "
-				<< std::this_thread::get_id()
-				<< '\n';
+    auto future2 = pool.submit([](int a, int b)
+        {
+            return a + b;
+        }, 20, 30);
 
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
-			});
-	}
-	
-	std::cin.get();
+    auto future3 = pool.submit([]()
+        {
+            std::cout << "Hello from worker thread\n";
+        });
+
+    std::cout << future1.get() << '\n';
+    std::cout << future2.get() << '\n';
+
+    future3.get();
+
+    return 0;
 }

@@ -68,10 +68,31 @@ public:
     std::size_t workerCount() const noexcept;
 
 private:
+    enum Priority
+    {
+        Low,
+        Medium,
+        High
+    };
+    
+    struct Task
+    {
+        std::function<void()> task;
+        Priority priority;
+
+        Task(std::function<void()>t,Priority p):task(std::move(t)),priority(p){}
+    };
+    struct TaskComparator {
+        bool operator()(const Task& lhs, const Task& rhs) const {
+            return lhs.priority < rhs.priority;
+        }
+    };
+
     void workerLoop();
 
     std::vector<std::thread> workers_;
-    std::queue<std::function<void()>> tasks_;
+    //std::queue<std::function<void()>> tasks_;
+    std::priority_queue<Task> tasks_;
 
     mutable std::mutex queue_mutex_;
     std::condition_variable condition_;
